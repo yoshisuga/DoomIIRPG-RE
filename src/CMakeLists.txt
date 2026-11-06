@@ -24,7 +24,9 @@ if(IOS)
 		list(APPEND IOS_RESOURCES "${DOOM2RPG_IPA}")
 	endif()
 
-	add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${HEADER_FILES} ${SOURCE_FILES} ${IOS_RESOURCES})
+	add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${HEADER_FILES} ${SOURCE_FILES} ${IOS_RESOURCES}
+		"${CMAKE_SOURCE_DIR}/iOS/SceneDelegate.m")
+	set_source_files_properties("${CMAKE_SOURCE_DIR}/iOS/SceneDelegate.m" PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 	set_source_files_properties(${IOS_RESOURCES} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 
 	set_target_properties(${PROJECT_NAME} PROPERTIES

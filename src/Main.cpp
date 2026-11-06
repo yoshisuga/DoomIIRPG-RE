@@ -29,7 +29,7 @@
 
 // [iOS] Saves and config live in the app's Documents folder (also visible in the Files app).
 // The game data is read from Documents first, then from the app bundle.
-static std::string iosFindGameData() {
+static std::string iosFindGameData(SDL_Window* window) {
     const char* ipaName = "Doom 2 RPG.ipa";
     struct stat sb;
 
@@ -54,7 +54,7 @@ static std::string iosFindGameData() {
 
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Doom II RPG",
         "Game data not found.\n\nCopy \"Doom 2 RPG.ipa\" into this app's folder using the Files app or Finder, then relaunch.",
-        nullptr);
+        window); // a parentless alert has no scene and would never appear
     exit(0);
 }
 #endif
@@ -70,7 +70,7 @@ int main(int argc, char* args[]) {
 
     ZipFile zipFile;
 #if TARGET_OS_IOS
-    std::string ipaPath = iosFindGameData();
+    std::string ipaPath = iosFindGameData(sdlGL.window);
     zipFile.openZipFile(ipaPath.c_str());
 #else
     zipFile.openZipFile("Doom 2 RPG.ipa");

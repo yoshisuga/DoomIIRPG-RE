@@ -5,6 +5,11 @@
 #include "App.h"
 
 
+#if TARGET_OS_IOS
+extern "C" void iosWaitForWindowScene(void);
+extern "C" void iosAttachWindowToScene(SDL_Window* window);
+#endif
+
 SDLResVidModes sdlResVideoModes[18] = {
 	{480, 320},
 	{640, 480},
@@ -82,10 +87,16 @@ bool SDLGL::Initialize() {
 		//this->winVidWidth = 1440;
 		//this->winVidHeight = 900;
 
+#if TARGET_OS_IOS
+		iosWaitForWindowScene();
+#endif
 		this->window = SDL_CreateWindow("Doom II RPG By [GEC] Version 0.1", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, winVidWidth, winVidHeight, flags);
 		if (!this->window) {
 			printf("Could not set %dx%d video mode: %s", winVidWidth, winVidHeight, SDL_GetError());
 		}
+#if TARGET_OS_IOS
+		iosAttachWindowToScene(this->window);
+#endif
 
 		this->vidWidth = Applet::IOS_WIDTH;
 		this->vidHeight = Applet::IOS_HEIGHT;
