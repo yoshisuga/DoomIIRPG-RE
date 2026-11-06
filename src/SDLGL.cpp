@@ -53,7 +53,23 @@ bool SDLGL::Initialize() {
 			printf("Could not initialize SDL: %s", SDL_GetError());
 		}
 
+#if TARGET_OS_IOS
+		SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+		SDL_SetHint(SDL_HINT_IOS_HIDE_HOME_INDICATOR, "2");
+		SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0"); // touches are handled as SDL_FINGER* events
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
+		flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS;
+		this->keepAspect = true;
+#else
 		flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN /* | SDL_WINDOW_RESIZABLE*/;
+		this->keepAspect = false;
+#endif
 		// Set the highdpi flags - this makes a big difference on Macs with
 		// retina displays, especially when using small window sizes.
 		flags |= SDL_WINDOW_ALLOW_HIGHDPI;
@@ -81,9 +97,11 @@ bool SDLGL::Initialize() {
 		//SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengles2");
 		//SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
 		//SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");//sdlVideo.vSync ? "1" : "0");
-		this->updateVideo();
-
 		this->glcontext = SDL_GL_CreateContext(window);
+		if (!this->glcontext) {
+			printf("Could not create GL context: %s\n", SDL_GetError());
+		}
+		this->updateVideo();
 
 		// now you can make GL calls.
 		glClearColor(0, 0, 0, 1);
@@ -154,10 +172,60 @@ void SDLGL::Error(const char* fmt, ...)
 
 
 void SDLGL::transformCoord2f(float* x, float* y) {
+	*x *= (float)this->dispW / (float)Applet::IOS_WIDTH;
+	*y *= (float)this->dispH / (float)Applet::IOS_HEIGHT;
+}
+
+// Maps a GL viewport/scissor rect {x, y, w, h} in game coordinates to drawable pixels
+void SDLGL::transformViewport(int* rect) {
+	float sx = (float)this->dispW / (float)Applet::IOS_WIDTH;
+	float sy = (float)this->dispH / (float)Applet::IOS_HEIGHT;
+	rect[0] = this->dispX + (int)((float)rect[0] * sx);
+	rect[1] = this->dispY + (int)((float)rect[1] * sy);
+	rect[2] = (int)((float)rect[2] * sx);
+	rect[3] = (int)((float)rect[3] * sy);
+}
+
+void SDLGL::updateDisplayRect() {
 	int w, h;
-	SDL_GetWindowSize(this->window, &w, &h);
-	*x *= (float)w / (float)Applet::IOS_WIDTH;
-	*y *= (float)h / (float)Applet::IOS_HEIGHT;
+	SDL_GL_GetDrawableSize(this->window, &w, &h);
+	if (w <= 0 || h <= 0) {
+		SDL_GetWindowSize(this->window, &w, &h);
+	}
+
+	this->dispX = 0;
+	this->dispY = 0;
+	this->dispW = w;
+	this->dispH = h;
+
+	if (this->keepAspect) {
+		// Letterbox / pillarbox to the original 3:2 aspect ratio
+		if (w * Applet::IOS_HEIGHT > h * Applet::IOS_WIDTH) {
+			this->dispW = (h * Applet::IOS_WIDTH) / Applet::IOS_HEIGHT;
+			this->dispX = (w - this->dispW) / 2;
+		}
+		else {
+			this->dispH = (w * Applet::IOS_HEIGHT) / Applet::IOS_WIDTH;
+			this->dispY = (h - this->dispH) / 2;
+		}
+	}
+}
+
+void SDLGL::setDisplayViewport() {
+	glViewport(this->dispX, this->dispY, this->dispW, this->dispH);
+	glScissor(this->dispX, this->dispY, this->dispW, this->dispH);
+}
+
+// Converts window coordinates (points) to normalized [0, 1] game coordinates
+void SDLGL::windowToGame(int wx, int wy, float* x, float* y) {
+	int ww, wh, pw, ph;
+	SDL_GetWindowSize(this->window, &ww, &wh);
+	SDL_GL_GetDrawableSize(this->window, &pw, &ph);
+	float px = (ww > 0) ? (float)wx * ((float)pw / (float)ww) : (float)wx;
+	float py = (wh > 0) ? (float)wy * ((float)ph / (float)wh) : (float)wy;
+	// drawable y is top-down here; dispY is symmetric so it works for either origin
+	*x = (px - (float)this->dispX) / (float)this->dispW;
+	*y = (py - (float)this->dispY) / (float)this->dispH;
 }
 
 void SDLGL::centerMouse(int x, int y) {
@@ -177,6 +245,12 @@ void SDLGL::updateVideo() {
 		SDL_GL_SetSwapInterval(this->vSync ? SDL_TRUE : SDL_FALSE);
 		this->oldVSync = this->vSync;
 	}
+
+#if TARGET_OS_IOS
+	// The window always covers the whole screen on iOS
+	this->oldWindowMode = this->windowMode;
+	this->oldResolutionIndex = this->resolutionIndex;
+#endif
 
 	if (this->windowMode != this->oldWindowMode) {
 		SDL_SetWindowFullscreen(this->window, 0);
@@ -201,6 +275,7 @@ void SDLGL::updateVideo() {
 	int winVidWidth, winVidHeight;
 	SDL_GetWindowSize(this->window, &winVidWidth, &winVidHeight);
 	this->updateWinVid(winVidWidth, winVidHeight);
+	this->updateDisplayRect();
 }
 
 void SDLGL::restore() {

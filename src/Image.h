@@ -1,7 +1,7 @@
 #ifndef __IMAGE_H__
 #define __IMAGE_H__
 
-#include <SDL_opengl.h>
+#include "SDLGL.h"
 
 class IDIB;
 

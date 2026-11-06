@@ -800,6 +800,45 @@ void Input::handleEvents() noexcept {
 
             
 
+            case SDL_FINGERDOWN:
+            case SDL_FINGERMOTION:
+            case SDL_FINGERUP: { // [iOS] Touch screen, single pointer like the original game
+                static SDL_FingerID activeFinger = -1;
+                const SDL_TouchFingerEvent& tf = sdlEvent.tfinger;
+                if (tf.touchId == SDL_MOUSE_TOUCHID) {
+                    break;
+                }
+
+                // Finger positions are normalized to the window; remap to the letterboxed game area
+                int ww, wh;
+                float fx, fy;
+                SDL_GetWindowSize(sdlGL->window, &ww, &wh);
+                sdlGL->windowToGame((int)(tf.x * ww), (int)(tf.y * wh), &fx, &fy);
+
+                if (sdlEvent.type == SDL_FINGERDOWN) {
+                    if (activeFinger != -1) {
+                        break;
+                    }
+                    activeFinger = tf.fingerId;
+                    gBegMouseX = gCurMouseX = fx;
+                    gBegMouseY = gCurMouseY = fy;
+                    CAppContainer::getInstance()->userPressed(fx, fy);
+                }
+                else if (tf.fingerId == activeFinger) {
+                    gCurMouseX = fx;
+                    gCurMouseY = fy;
+                    if (sdlEvent.type == SDL_FINGERMOTION) {
+                        CAppContainer::getInstance()->userMoved(fx, fy);
+                    }
+                    else {
+                        activeFinger = -1;
+                        CAppContainer::getInstance()->userReleased(fx, fy);
+                        CAppContainer::getInstance()->unHighlightButtons();
+                        CAppContainer::getInstance()->TestCheatEntry(fx, fy);
+                    }
+                }
+            }   break;
+
             case SDL_MOUSEBUTTONDOWN: {
                 state = SDL_GetMouseState(&mX, &mY);
                 if (state & SDL_BUTTON_LMASK) {

@@ -210,19 +210,16 @@ OutputStream::~OutputStream() {
 }
 
 #include <sys/stat.h>
+#include <filesystem>
 
 int OutputStream::openFile(const char* fileName, int openMode) {
 	char namePath[2060];
 
 	struct stat sb;
 	if (stat(dir, &sb)) {
-		char command[64];
-		std::strcpy(command, "mkdir ");
-		std::strcat(command, "\"");
-		std::strcat(command, dir);
-		std::strcat(command, "\"");
-		//printf("command %s\n", command);
-		std::system(command);
+		// [iOS] std::system() is unavailable on iOS
+		std::error_code ec;
+		std::filesystem::create_directories(dir, ec);
 	}
 
 	std::strcpy(namePath, dir);

@@ -4313,14 +4313,7 @@ void DrawBitmap(short* buffer, int buffW, int buffH, int x, int y, int w, int h)
 void Render::Render3dScene(void) {
 	short* backBuffer = CAppContainer::getInstance()->GetBackBuffer();
 
-	int cx, cy;
-	int w = CAppContainer::getInstance()->sdlGL->vidWidth;
-	int h = CAppContainer::getInstance()->sdlGL->vidHeight;
-	SDL_GetWindowSize(CAppContainer::getInstance()->sdlGL->window, &cx, &cy);
-	if (w != cx || h != cy) {
-		w = cx; h = cy;
-	}
-	glViewport(0, 0, (GLsizei)w, (GLsizei)h);
+	CAppContainer::getInstance()->sdlGL->setDisplayViewport();
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	glOrtho(0.0, Applet::IOS_WIDTH, Applet::IOS_HEIGHT, 0.0, -1.0, 1.0);

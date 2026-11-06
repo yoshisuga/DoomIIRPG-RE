@@ -22,17 +22,59 @@
 #include "TinyGL.h"
 #include "Input.h"
 
+#if TARGET_OS_IOS
+#include <unistd.h>
+#include <sys/stat.h>
+#include <string>
+
+// [iOS] Saves and config live in the app's Documents folder (also visible in the Files app).
+// The game data is read from Documents first, then from the app bundle.
+static std::string iosFindGameData() {
+    const char* ipaName = "Doom 2 RPG.ipa";
+    struct stat sb;
+
+    const char* home = getenv("HOME");
+    if (home) {
+        std::string docs = std::string(home) + "/Documents";
+        mkdir(docs.c_str(), 0755);
+        chdir(docs.c_str());
+        if (stat(ipaName, &sb) == 0) {
+            return docs + "/" + ipaName;
+        }
+    }
+
+    char* base = SDL_GetBasePath();
+    if (base) {
+        std::string path = std::string(base) + ipaName;
+        SDL_free(base);
+        if (stat(path.c_str(), &sb) == 0) {
+            return path;
+        }
+    }
+
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Doom II RPG",
+        "Game data not found.\n\nCopy \"Doom 2 RPG.ipa\" into this app's folder using the Files app or Finder, then relaunch.",
+        nullptr);
+    exit(0);
+}
+#endif
+
 void drawView(SDLGL* sdlGL);
 
 int main(int argc, char* args[]) {
 
     int		UpTime = 0;
-    
-    ZipFile zipFile;
-    zipFile.openZipFile("Doom 2 RPG.ipa");
 
 	SDLGL sdlGL;
 	sdlGL.Initialize();
+
+    ZipFile zipFile;
+#if TARGET_OS_IOS
+    std::string ipaPath = iosFindGameData();
+    zipFile.openZipFile(ipaPath.c_str());
+#else
+    zipFile.openZipFile("Doom 2 RPG.ipa");
+#endif
 
     Input input;
     input.init(); // [GEC] Port: set default Binds
@@ -88,20 +130,20 @@ static uint32_t lastTimems = 0;
 
 void drawView(SDLGL *sdlGL) {
 
-    int cx, cy;
-    int w = sdlGL->vidWidth;
-    int h = sdlGL->vidHeight;
+    int w, h;
 
     if (lastTimems == 0) {
         lastTimems = CAppContainer::getInstance()->getTimeMS();
     }
 
-    SDL_GetWindowSize(sdlGL->window, &cx, &cy);
-    if (w != cx || h != cy) {
-        w = cx; h = cy;
-    }
-
+    // Clear the whole drawable (including any letterbox bars), then draw into the game area
+    sdlGL->updateDisplayRect();
+    SDL_GL_GetDrawableSize(sdlGL->window, &w, &h);
     glViewport(0, 0, (GLsizei)w, (GLsizei)h);
+    glDisable(GL_SCISSOR_TEST);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    sdlGL->setDisplayViewport();
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_ALPHA_TEST);
     glMatrixMode(GL_PROJECTION);
@@ -111,8 +153,6 @@ void drawView(SDLGL *sdlGL) {
     //glTranslatef(0.0, -320.0, 0.0);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glClearColor(0.0, 0.0, 0.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
     
 
     uint32_t startTime = CAppContainer::getInstance()->getTimeMS();
